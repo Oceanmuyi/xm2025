@@ -2,9 +2,9 @@
 <html>
 <head>
   <title>雪准 - 单板重心检测预览版</title>
-  <script src="https://cdn.staticfile.org/mediapipe-pose/0.5.1675469404/pose.js"></script>
-  <script src="https://cdn.staticfile.org/mediapipe-camera_utils/0.3.1675469319/camera_utils.js"></script>
-  <script src="https://cdn.staticfile.org/mediapipe-drawing_utils/0.3.1675469040/drawing_utils.js"></script>
+  <script src="https://lf26-cdn-tos.bytecdntimes.com/obj/static/itc/mediapipe/pose/pose.js"></script>
+  <script src="https://lf26-cdn-tos.bytecdntimes.com/obj/static/itc/mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://lf26-cdn-tos.bytecdntimes.com/obj/static/itc/mediapipe/drawing_utils/drawing_utils.js"></script>
   <style>
     body { font-family: 'PingFang SC', sans-serif; text-align: center; background: #2c3e50; color: white; padding: 20px; }
     .author { font-size: 14px; color: #bdc3c7; margin-bottom: 20px; }
@@ -12,14 +12,14 @@
     .safe { background: #27ae60; }
     .danger { background: #e74c3c; animation: blink 0.5s infinite; }
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-    canvas { width: 100%; max-width: 640px; border-radius: 15px; background: #000; }
+    canvas { width: 100%; max-width: 640px; border-radius: 15px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
   <h1>🏂 雪准 AI 重心实验室</h1>
   <div class="author">by 万源</div>
-  <div id="status" class="safe">正在连接 AI 引擎...</div>
-  <video id="input_video" style="display:none"></video>
+  <div id="status" class="safe">正在连接国内 AI 引擎...</div>
+  <video id="input_video" style="display:none" playsinline></video>
   <canvas id="output_canvas"></canvas>
 
   <script>
@@ -28,17 +28,30 @@
     const canvasCtx = canvasElement.getContext('2d');
     const statusDiv = document.getElementById('status');
 
+    // 超时检测：如果 15 秒还没加载好，给出提示
+    const timeout = setTimeout(() => {
+        if (statusDiv.innerText.includes("正在连接")) {
+            statusDiv.innerText = "❌ 加载超时，请刷新页面或检查网络";
+            statusDiv.className = "danger";
+        }
+    }, 15000);
+
     function onResults(results) {
+      clearTimeout(timeout); // 加载成功，取消超时检测
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
       canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+      
       if (results.poseLandmarks) {
         drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+        
+        // 逻辑判断
         const hip = results.poseLandmarks[24];
         const ankle = results.poseLandmarks[28];
         const diff = hip.x - ankle.x; 
+        
         if (diff > 0.12) { 
-          statusDiv.innerText = "⚠️ 警告：重心太靠后了！";
+          statusDiv.innerText = "⚠️ 警告：重心后坐！";
           statusDiv.className = "danger";
         } else {
           statusDiv.innerText = "✅ 重心位置良好";
@@ -48,7 +61,13 @@
       canvasCtx.restore();
     }
 
-    const pose = new Pose({locateFile: (file) => `https://cdn.staticfile.org/mediapipe-pose/0.5.1675469404/${file}`});
+    const pose = new Pose({
+      locateFile: (file) => {
+        // 同样使用字节跳动的镜像节点
+        return `https://lf26-cdn-tos.bytecdntimes.com/obj/static/itc/mediapipe/pose/${file}`;
+      }
+    });
+
     pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     pose.onResults(onResults);
 
@@ -56,7 +75,13 @@
       onFrame: async () => { await pose.send({image: videoElement}); },
       width: 640, height: 480
     });
-    camera.start().then(() => { statusDiv.innerText = "✅ AI 已就绪，请侧对镜头测试"; });
+
+    camera.start().then(() => {
+        statusDiv.innerText = "✅ AI 准备就绪";
+    }).catch(err => {
+        statusDiv.innerText = "❌ 摄像头开启失败";
+        statusDiv.className = "danger";
+    });
   </script>
 </body>
 </html>
