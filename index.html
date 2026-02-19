@@ -2,37 +2,25 @@
 <html>
 <head>
   <title>雪准 - 单板重心检测预览版</title>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+  <script src="https://cdn.staticfile.org/mediapipe-pose/0.5.1675469404/pose.js"></script>
+  <script src="https://cdn.staticfile.org/mediapipe-camera_utils/0.3.1675469319/camera_utils.js"></script>
+  <script src="https://cdn.staticfile.org/mediapipe-drawing_utils/0.3.1675469040/drawing_utils.js"></script>
   <style>
-    body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; text-align: center; background: #2c3e50; color: white; margin: 0; padding: 20px; }
-    h1 { margin-bottom: 5px; color: #ecf0f1; }
-    .author { font-size: 16px; color: #bdc3c7; margin-bottom: 20px; letter-spacing: 2px; }
-    .container { position: relative; width: 640px; margin: auto; }
-    #status { font-size: 22px; font-weight: bold; margin: 10px auto 25px auto; padding: 15px; border-radius: 10px; width: 600px; transition: 0.3s; }
-    .safe { background: #27ae60; box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4); }
-    .danger { background: #e74c3c; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4); animation: blink 0.5s infinite; }
+    body { font-family: 'PingFang SC', sans-serif; text-align: center; background: #2c3e50; color: white; padding: 20px; }
+    .author { font-size: 14px; color: #bdc3c7; margin-bottom: 20px; }
+    #status { font-size: 20px; font-weight: bold; margin: 10px auto; padding: 15px; border-radius: 10px; width: 90%; max-width: 600px; }
+    .safe { background: #27ae60; }
+    .danger { background: #e74c3c; animation: blink 0.5s infinite; }
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-    canvas { border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); background: #000; }
-    .instruction { margin-top: 20px; color: #95a5a6; font-size: 14px; }
+    canvas { width: 100%; max-width: 640px; border-radius: 15px; background: #000; }
   </style>
 </head>
 <body>
   <h1>🏂 雪准 AI 重心实验室</h1>
   <div class="author">by 万源</div>
-  
-  <div id="status" class="safe">正在启动 AI 引擎...</div>
-  
-  <div class="container">
-    <video id="input_video" style="display:none"></video>
-    <canvas id="output_canvas" width="640px" height="480px"></canvas>
-  </div>
-  
-  <div class="instruction">
-    <p>💡 <b>测试指南：</b> 侧对摄像头站立。<br>
-    当你模拟单板滑行姿态时，如果屁股向后凸（重心离开中轴线），系统将触发红色警报。</p>
-  </div>
+  <div id="status" class="safe">正在连接 AI 引擎...</div>
+  <video id="input_video" style="display:none"></video>
+  <canvas id="output_canvas"></canvas>
 
   <script>
     const videoElement = document.getElementById('input_video');
@@ -44,33 +32,23 @@
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
       canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-
       if (results.poseLandmarks) {
-        // 绘制骨骼线
         drawConnectors(canvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
-        drawLandmarks(canvasCtx, results.poseLandmarks, {color: '#FF0000', lineWidth: 2});
-
-        // 获取关键点坐标 (MediaPipe 坐标是 0 到 1 之间的比例)
-        const hip = results.poseLandmarks[24];   // 右侧髋部
-        const ankle = results.poseLandmarks[28]; // 右侧脚踝
-
-        // 计算逻辑：侧向站位下，屁股(hip)相对于脚踝(ankle)的偏移
-        // 在 MediaPipe 中，x 越大代表在画面中越靠右
+        const hip = results.poseLandmarks[24];
+        const ankle = results.poseLandmarks[28];
         const diff = hip.x - ankle.x; 
-
-        // 设定一个感应阈值，如果屁股向后偏移过多，则触发警告
         if (diff > 0.12) { 
-          statusDiv.innerText = "⚠️ 警告：检测到重心后坐（坐马桶）！";
+          statusDiv.innerText = "⚠️ 警告：重心太靠后了！";
           statusDiv.className = "danger";
         } else {
-          statusDiv.innerText = "✅ 姿势标准：重心控制良好";
+          statusDiv.innerText = "✅ 重心位置良好";
           statusDiv.className = "safe";
         }
       }
       canvasCtx.restore();
     }
 
-    const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+    const pose = new Pose({locateFile: (file) => `https://cdn.staticfile.org/mediapipe-pose/0.5.1675469404/${file}`});
     pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
     pose.onResults(onResults);
 
@@ -78,12 +56,7 @@
       onFrame: async () => { await pose.send({image: videoElement}); },
       width: 640, height: 480
     });
-    camera.start();
-    
-    // 引擎加载完成提示
-    camera.start().then(() => {
-        statusDiv.innerText = "✅ AI 已就绪，请开始滑行模拟";
-    });
+    camera.start().then(() => { statusDiv.innerText = "✅ AI 已就绪，请侧对镜头测试"; });
   </script>
 </body>
 </html>
